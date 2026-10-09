@@ -5,9 +5,14 @@ from pathlib import Path
 from threading import Thread
 
 from weightd.core.registry import BundleRegistry
-from weightd.errors import BundleNotFoundError, InvalidRequestError
-from weightd.ipc.protocol import PROTOCOL_VERSION, Operation, make_response
-from weightd.ipc.torch_transport import send_bundle
+from weightd.errors import BundleNotFoundError, InvalidRequestError, WeightDError
+from weightd.ipc.protocol import (
+    PROTOCOL_VERSION,
+    Operation,
+    make_response,
+    validate_request,
+)
+from weightd.ipc.torch_transport import pack_bundle, unpack_bundle
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +52,7 @@ class WeightDServer:
 
     def handle_request(self, request: dict) -> dict:
         """Handle a single request."""
-        if not isinstance(request, dict):
-            raise InvalidRequestError("Invalid request format: expected a dictionary")
+        validate_request(request)
         op = request.get("op")
         match op:
             case Operation.PING:
@@ -61,7 +65,7 @@ class WeightDServer:
                     raise InvalidRequestError("Invalid or missing 'name' parameter")
                 # register.get has handled the case where the bundle is not found and raises BundleNotFoundError
                 bundle = self.registry.get(name)
-                return make_response(ok=True, data=bundle)
+                return make_response(ok=True, data=pack_bundle(bundle))
             case _:
                 raise InvalidRequestError(f"Unknown operation: {op}")
 
@@ -70,52 +74,11 @@ class WeightDServer:
         with conn:
             try:
                 request = conn.recv()
-
-                if not isinstance(request, dict):
-                    raise ValueError("Invalid request format: expected a dictionary")
-
-                if request.get("version") != PROTOCOL_VERSION:
-                    raise ValueError(
-                        f"Protocol version mismatch: expected {PROTOCOL_VERSION}, got {request.get('version')}"
-                    )
-
-                op = request.get("op")
-                logger.debug("Received request: %s", request)
-
-                match op:
-                    case Operation.PING:
-                        conn.send(make_response(ok=True, data="PONG"))
-                    case Operation.LIST:
-                        conn.send(make_response(ok=True, data=self.registry.list()))
-                    case Operation.GET:
-                        name = request.get("name")
-                        if not isinstance(name, str) or not name:
-                            conn.send(
-                                make_response(
-                                    ok=False,
-                                    error="Invalid or missing 'name' parameter",
-                                )
-                            )
-                            return
-                        bundle = self.registry.get(name)
-                        if bundle is None:
-                            conn.send(
-                                make_response(
-                                    ok=False,
-                                    error=f"Bundle not found: {name}",
-                                )
-                            )
-                        else:
-                            send_bundle(conn, bundle)
-                    case _:
-                        conn.send(
-                            make_response(
-                                ok=False,
-                                error=f"Unknown operation: {op}",
-                            )
-                        )
-            except (KeyError, ValueError, TypeError) as e:
-                logger.error(f"Error handling request: {e}")
-                conn.send(make_response(ok=False, error=str(e)))
-            except (EOFError, OSError, ConnectionError):
-                pass  # Client disconnected
+                try:
+                    response = self.handle_request(request)
+                except WeightDError as e:
+                    logger.error(f"Error handling request: {e}")
+                    response = make_response(ok=False, error=str(e))
+                conn.send(response)
+            except Exception as e:
+                logger.exception("Error handling client connection: %s", e)

@@ -29,19 +29,22 @@ def recv_tensor(conn: Connection) -> torch.Tensor:
     return tensor
 
 
-def send_bundle(
-    conn: Connection,
+def pack_bundle(
     bundle: WeightBundle,
-) -> None:
-    payload = (
-        bundle.manifest,
-        dict(bundle.items()),
-    )
-    conn.send(payload)
+) -> tuple[BundleManifest, dict[str, torch.Tensor]]:
+    """
+    Pack a WeightBundle into a manifest and a dictionary of tensors.
+    """
+    return (bundle.manifest, dict(bundle.items()))
 
 
-def recv_bundle(conn: Connection) -> WeightBundle:
-    manifest, tensors = conn.recv()
+def unpack_bundle(
+    payload: tuple[BundleManifest, dict[str, torch.Tensor]],
+) -> WeightBundle:
+    """
+    Unpack a manifest and a dictionary of tensors into a WeightBundle.
+    """
+    manifest, tensors = payload
 
     if not isinstance(manifest, BundleManifest):
         raise TypeError("Received object is not a BundleManifest")
@@ -58,3 +61,14 @@ def recv_bundle(conn: Connection) -> WeightBundle:
         raise ValueError("Received bundle does not match the manifest")
 
     return bundle
+
+
+def send_bundle(
+    conn: Connection,
+    bundle: WeightBundle,
+) -> None:
+    conn.send(pack_bundle(bundle))
+
+
+def recv_bundle(conn: Connection) -> WeightBundle:
+    return unpack_bundle(conn.recv())

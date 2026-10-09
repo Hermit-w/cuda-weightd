@@ -1,5 +1,7 @@
 from enum import StrEnum
 
+from weightd.errors import InvalidRequestError, ProtocolVersionError
+
 
 class Operation(StrEnum):
     """IPC operation types."""
@@ -21,6 +23,21 @@ def make_request(
         "op": op.value,
         **kwargs,
     }
+
+
+def validate_request(request: dict) -> None:
+    if not isinstance(request, dict):
+        raise InvalidRequestError("Request must be a dictionary.")
+
+    version = request.get("version")
+    if version != PROTOCOL_VERSION:
+        raise ProtocolVersionError(
+            f"Invalid protocol version: {version}. Expected: {PROTOCOL_VERSION}"
+        )
+
+    op = request.get("op")
+    if op not in Operation.__members__:
+        raise InvalidRequestError(f"Invalid operation: {op}.")
 
 
 def make_response(

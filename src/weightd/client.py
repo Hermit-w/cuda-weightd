@@ -2,7 +2,7 @@ from multiprocessing.connection import Client
 
 from weightd.core.bundle import WeightBundle
 from weightd.ipc.protocol import Operation, make_request
-from weightd.ipc.torch_transport import recv_bundle
+from weightd.ipc.torch_transport import unpack_bundle
 
 
 class WeightDClient:
@@ -52,4 +52,4 @@ class WeightDClient:
             conn.send(make_request(Operation.GET, name=name))
             response = conn.recv()
             self._check_response(response)
-            return recv_bundle(conn)
+            return unpack_bundle(response.get("data"))
