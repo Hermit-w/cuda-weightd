@@ -26,3 +26,27 @@ class ProtocolVersionError(WeightDError):
     """Raised when there is a protocol error in communication with the server."""
 
     pass
+
+
+class InvalidLeaseStateError(WeightDError):
+    """Raised when an operation is attempted on a lease in an invalid state."""
+
+    pass
+
+
+class LeaseNotFoundError(WeightDError):
+    """Raised when a requested lease is not found."""
+
+    pass
+
+
+class LeasePermissionError(WeightDError):
+    """Raised when a lease operation is attempted by a client that does not own the lease."""
+
+    pass
+
+
+class ServiceDrainingError(WeightDError):
+    """Raised when the service is draining and cannot accept new requests."""
+
+    pass

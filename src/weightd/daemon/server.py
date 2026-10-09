@@ -61,6 +61,8 @@ class WeightDServer:
                 return make_response(ok=True, data=self.registry.list())
             case Operation.GET:
                 name = request.get("name")
+                # TODO: do we need to check this parameter? The registry.get method will BundleNotFoundError, but
+                # maybe InvalidRequestError is more appropriate for an empty or non-string name parameter.
                 if not isinstance(name, str) or not name:
                     raise InvalidRequestError("Invalid or missing 'name' parameter")
                 # register.get has handled the case where the bundle is not found and raises BundleNotFoundError
